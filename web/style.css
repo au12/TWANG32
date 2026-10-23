@@ -32,7 +32,7 @@
   --radius-s: 6px;
   --radius-m: 10px;
   --gutter: 16px;
-  --display: "Grenze Gotisch", "UnifrakturCook", Georgia, serif;
+  --display: "Nasalization", "Orbitron", "Eurostile", "Arial Black", sans-serif;
   --text: "Archivo Variable", "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
@@ -86,10 +86,10 @@ a { color: inherit; }
 }
 .wordmark {
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 34px;
+  font-weight: 400;
+  font-size: 27px;
   line-height: 1;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.04em;
   margin: 0;
 }
 .wordmark small {
@@ -167,9 +167,9 @@ a { color: inherit; }
 }
 .hud .lname {
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 24px;
-  line-height: 1.1;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 1.2;
   margin-right: auto;
   min-width: 0;
   overflow: hidden;
@@ -353,8 +353,8 @@ body.playing.touch .pad { display: flex; }
   background: var(--led-exit);
   color: #fff;
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 22px;
+  font-weight: 400;
+  font-size: 16px;
   box-shadow: 0 0 22px color-mix(in srgb, var(--led-exit) 70%, transparent);
   touch-action: none;
 }
@@ -389,9 +389,9 @@ body.playing.touch .pad { display: flex; }
 
 .lvl-name {
   font-family: var(--display);
-  font-weight: 700;
-  font-size: 36px;
-  line-height: 1.1;
+  font-weight: 400;
+  font-size: 27px;
+  line-height: 1.2;
   background: transparent;
   border: 0;
   border-bottom: 1px dashed var(--stone-3);
@@ -494,7 +494,7 @@ dialog {
   max-width: min(440px, calc(100vw - 32px));
 }
 dialog::backdrop { background: rgba(5, 4, 8, 0.6); }
-dialog h3 { margin: 0 0 8px; font-family: var(--display); font-size: 30px; font-weight: 700; }
+dialog h3 { margin: 0 0 8px; font-family: var(--display); font-size: 23px; font-weight: 400; }
 .toast {
   position: fixed;
   left: 50%;

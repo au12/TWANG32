@@ -7,7 +7,8 @@ Outputs:
   TWANG32/src/app/web_ui.h         gzipped page as a C array, compiled into the firmware
   TWANG32/src/app/default_campaign.h  the stock campaign (minified), used on first boot / factory reset
 
-Requires build/twang.wasm (run wasm/build.sh first) and the two fonts in web/fonts/.
+Requires build/twang.wasm (run wasm/build.sh first) and the two fonts in web/fonts/
+(Nasalization for display, Archivo for text).
 """
 import base64
 import gzip
@@ -43,7 +44,7 @@ def main():
     if not wasm.exists():
         sys.exit("build/twang.wasm is missing: run wasm/build.sh first")
     fonts_dir = WEB / "fonts"
-    fonts = font_face("Grenze Gotisch", fonts_dir / "grenze-gotisch-latin-700-normal.woff2", 700)
+    fonts = font_face("Nasalization", fonts_dir / "nasalization-latin-400-normal.woff2", 400)
     fonts += font_face("Archivo Variable", fonts_dir / "archivo-latin-wght-normal.woff2", "100 900")
 
     camp_next = json.loads((ROOT / "campaign" / "next.json").read_text())

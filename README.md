@@ -103,4 +103,4 @@ parts/                   PCB, enclosure (from the original project)
 
 ## Credits and license
 
-TWANG by Critters, TWANG32 and hardware by Bart Dring ([buildlog.net](http://www.buildlog.net/blog?s=twang)), inspired by Robin Baumgarten's Line Wobbler. Fire2012 screensaver by Mark Kriegsman. Fonts: Grenze Gotisch and Archivo (SIL Open Font License, see `web/fonts`). Creative Commons 4.0 Attribution - Share Alike, as the original.
+TWANG by Critters, TWANG32 and hardware by Bart Dring ([buildlog.net](http://www.buildlog.net/blog?s=twang)), inspired by Robin Baumgarten's Line Wobbler. Fire2012 screensaver by Mark Kriegsman. Fonts: Nasalization by Typodermic Fonts (display) and Archivo (SIL Open Font License, see `web/fonts`). Creative Commons 4.0 Attribution - Share Alike, as the original.
