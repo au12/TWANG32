@@ -8,10 +8,11 @@ Why 925 MHz: it stays out of 2.4 GHz entirely (Wi-Fi, Bluetooth, Zigbee) and cle
 
 | Part | Notes |
 |---|---|
-| Seeed Studio XIAO ESP32-C3 | Controller brain, with a LiPo charger and battery pads built in |
+| Seeed Studio XIAO ESP32-C3 | Controller brain |
 | Adafruit LSM6DSOX 6-DoF (product 4438) | At the tip of the spring. Its wake-on-motion lets the controller sleep |
 | Adafruit RFM69HCW 915 MHz breakout | One for the controller, **one more for the main unit** |
-| 3.7 V LiPo, 1000–2000 mAh, with protection circuit | See "Battery" below |
+| 3.7 V LiPo, 2000 mAh | See "Battery" below |
+| USB-C TP4056 charger with protection (e.g. HiLetgo 1 A board) | Charges at about 1 A and protects the cell. Use it instead of the XIAO's slow built-in charger |
 | Small slide switch | On the battery's + lead |
 | 2 × 220 kΩ resistors | Battery voltage sensing (optional but recommended) |
 | Coin vibration motor module (3–5 V, with driver transistor) | Optional haptics |
@@ -42,7 +43,19 @@ Why these pins: only GPIO 0–5 can wake an ESP32-C3 from deep sleep, so the mot
 
 **The spring:** five thin wires run up to the LSM6DSOX: 3V3, GND, SDA, SCL and I1. Solder them; the snap-in cable connectors on the Adafruit board won't survive thousands of twangs. Leave a strain-relief loop at the base. The sensor's power LED draws about a milliamp all the time, so remove it (or cut its jumper, if the board has one) for the best standby life.
 
-**Battery:** solder the LiPo to the BAT+ and BAT− pads on the underside of the XIAO, with the slide switch in the + lead. **Check the polarity before you solder:** JST battery leads aren't standardized between vendors, and reversing them destroys the charger. The divider for D0 goes after the switch so it draws nothing when off.
+**Battery and charger:**
+
+```
+LiPo + ──── B+  ┌──────────────┐  OUT+ ──── switch ──┬── XIAO BAT+  (underside pad)
+LiPo − ──── B−  │ TP4056 board │  OUT− ──────────────┴── XIAO BAT−
+                └─── USB-C ────┘        220k / 220k divider from the switched + to GND, middle to D0
+```
+
+- The battery goes on the charger's **B+/B−**. The XIAO takes its power from the charger's **output** pads (**OUT+/OUT−**, sometimes printed just **+/−**). Those pass through the board's protection, so the cell can't be over-discharged or shorted.
+- Feed the XIAO through its **BAT pads, not its 5V pin.** The 5V pin connects straight to the XIAO's USB, so plugging in to flash would push 5 V back into the battery circuit. Through the BAT pads, flashing over the XIAO's USB-C with the battery connected is fine.
+- The switch sits after the charger, so the controller charges with the switch off.
+- **Check the polarity before you solder.** JST battery leads aren't standardized between vendors, and reversing them destroys the charger.
+- Leave a small window or light pipe in the base for the charger's two LEDs (charging and full).
 
 **Antenna:** solder a 78 mm straight wire to the RFM69's **ANT** pad. Point it up, and keep it away from the steel spring.
 
@@ -80,7 +93,7 @@ Put the same 78 mm antenna on it, vertical, and keep it out from behind the LED 
 ## Living with it
 
 - **Sleep:** after 3 minutes without movement the controller sleeps (about 50–300 µA, mostly the breakout boards' regulators). A nudge of the spring wakes it in well under a second, with a short buzz. Change `SLEEP_AFTER_S` in `controller_config.h`.
-- **Battery:** in play the controller draws roughly 25–35 mA (my estimate; the Setup page shows the real voltage over time), so 2000 mAh is about 60–80 hours of play. The XIAO's built-in charger is slow, at 50–100 mA, so a flat 2000 mAh pack takes most of a day to refill. If that bothers you, a 1000 mAh pack still gives 30+ hours of play and charges overnight.
+- **Battery:** in play the controller draws roughly 25–35 mA (my estimate; the Setup page shows the real voltage over time), so 2000 mAh is about 60–80 hours of play. Charge it through the TP4056 board's USB-C: about 1 A, so a flat pack fills in 2½–3 hours. Playing while it's plugged in works, but this kind of charger can't tell the controller's draw from the battery's, so it may stop around 95%. A charge with the switch off tops it up.
 - **Low battery:** below 3.45 V the Setup page says "charge soon". Below 3.25 V the controller buzzes once and sleeps, checking every 10 minutes, to protect the cell.
 - **Interference:** the main unit tracks packet loss. If a channel stays above 30% loss for 2 seconds, it moves both ends to the next of three frequencies (925.0, 922.6, 926.6 MHz). They're fixed in `TWANG32/src/link/twang_link.h`, compiled into both ends so they always agree. If you change them, run `tools/sync-link.sh` and reflash both.
 - **Legal note:** the radio runs at −2 dBm on a fixed frequency, inside FCC Part 15.249's low-power limits for 902–928 MHz. Don't raise `TX_POWER_DBM`; at room distance it gains you nothing.
@@ -93,5 +106,6 @@ Put the same 78 mm antenna on it, vertical, and keep it out from behind the LED 
 | Serial says `radio NOT FOUND` and it buzzes long | SPI wiring: check SCK/MISO/MOSI/CS, and that the breakout has power |
 | XIAO won't run after power-up, but works after pressing reset | MISO (GPIO9) is held low at boot. Add a 10 kΩ pull-up from the RFM69's CS to 3V3 |
 | Sleeps right after waking | Battery under 3.25 V, or a bad divider reading: set `HAS_BATTERY_SENSE 0` if you left the divider out |
+| Dead even though the battery is charged | The TP4056 board's protection tripped (after a short or a fully flat cell). Plug its USB-C in for a moment to reset it |
 | Never sleeps | `IMU_FAULT` (check the sensor's wires), or the spring is twitching above `MOTION_DPS` (raise it) |
 | Player drifts | Calibrate with the spring at rest, then raise the dead zone by 2 |
