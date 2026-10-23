@@ -9,6 +9,8 @@
 #include <WiFi.h>
 #include "../core/tw_json.h"
 #include "../hal/audio_out.h"
+#include "../hal/controls.h"
+#include "../hal/radio_rx.h"
 #include "app.h"
 #include "default_campaign.h"
 #include "json_out.h"
@@ -206,8 +208,12 @@ static void sendJoy() {
   for (auto& s : local) {
     if (!s.id || !s.joy) continue;
     if (!msg.length()) {
-      JsonOut j(64);
-      j.obj().kv("t", "j").kv("tilt", joystick.lastTilt()).kv("wobble", joystick.lastWobble()).end();
+      radio_rx::Status rs = radio_rx::status();
+      JsonOut j(220);
+      j.obj().kv("t", "j").kv("tilt", controls::lastTilt()).kv("wobble", (unsigned)controls::lastWobble())
+          .kv("src", controls::sourceName()).kv("radio", rs.present).kv("conn", rs.connected).kv("rssi", (int)rs.rssi)
+          .kv("loss", (unsigned)rs.loss).kv("pps", (unsigned)rs.packetsPerSec).kv("mhz", rs.freqKhz / 1000.0f)
+          .kv("ch", (unsigned)rs.channel).kv("batt", (unsigned)rs.battMv).kv("lowBatt", rs.lowBatt).end();
       msg = j.s;
     }
     if (ws.availableForWrite(s.id)) ws.text(s.id, msg);
@@ -224,13 +230,19 @@ static void routes() {
   for (const char* p : probes) server.on(p, HTTP_GET, toPortal);
 
   server.on("/api/info", HTTP_GET, [](AsyncWebServerRequest* r) {
-    JsonOut j(512);
+    JsonOut j(800);
     j.obj().kv("device", "twang").kv("version", TWANG_VERSION).kv("name", settings.apName).kv("ip", apIp().c_str());
     if (WiFi.status() == WL_CONNECTED) j.kv("staIp", WiFi.localIP().toString().c_str()).kv("staSsid", settings.staSsid);
-    char joy[40];
-    if (joystick.present()) snprintf(joy, sizeof joy, "MPU6050 (id 0x%02X)", joystick.whoAmI());
-    else snprintf(joy, sizeof joy, "not found, check SDA %d / SCL %d", I2C_SDA_PIN, I2C_SCL_PIN);
-    j.kv("joystick", joy).kv("heap", (unsigned long)ESP.getFreeHeap()).kv("minHeap", (unsigned long)ESP.getMinFreeHeap())
+    char wired[48], radio[48], ctl[64];
+    if (strcmp(controls::wiredName(), "none")) snprintf(wired, sizeof wired, "%s at 0x%02X", controls::wiredName(), controls::wiredAddress());
+    else snprintf(wired, sizeof wired, "none on SDA %d / SCL %d", I2C_SDA_PIN, I2C_SCL_PIN);
+    radio_rx::Status rs = radio_rx::status();
+    if (rs.present) snprintf(radio, sizeof radio, "RFM69HCW on %.3f MHz, network %u", rs.freqKhz / 1000.0f, settings.radioNetId);
+    else snprintf(radio, sizeof radio, "not fitted");
+    if (rs.connected) snprintf(ctl, sizeof ctl, "connected, %d dBm, %u%% loss, %.2f V", rs.rssi, rs.loss, rs.battMv / 1000.0f);
+    else if (rs.lastSeenMs) snprintf(ctl, sizeof ctl, "last seen %lu s ago", (unsigned long)((millis() - rs.lastSeenMs) / 1000));
+    else snprintf(ctl, sizeof ctl, rs.present ? "not heard yet" : "no radio");
+    j.kv("joystick", controls::sourceName()).kv("wiredSensor", wired).kv("radio", radio).kv("controller", ctl).kv("heap", (unsigned long)ESP.getFreeHeap()).kv("minHeap", (unsigned long)ESP.getMinFreeHeap())
         .kv("uptime", (unsigned long)(millis() / 1000)).kv("fps", (unsigned long)fps()).kv("ledCount", settings.ledCount)
         .kv("ledType", ledType()).kv("maxLeds", MAX_LEDS).kv("audio", audio_out::description())
         .kv("audioUnderruns", (unsigned long)audio_out::underruns()).kv("levels", campaign->count).end();
@@ -321,6 +333,10 @@ static void routes() {
     else post({CMD_SOUND, f.id, 0, 0});
     sendOk(r);
   }, nullptr, collectBody);
+  server.on("/api/controller/buzz", HTTP_POST, [](AsyncWebServerRequest* r) {
+    post({CMD_HAPTIC, 250, 0, 0});
+    sendOk(r);
+  });
   server.on("/api/calibrate", HTTP_POST, [](AsyncWebServerRequest* r) {
     post({CMD_CALIBRATE, 0, 0, 0});
     sendOk(r);

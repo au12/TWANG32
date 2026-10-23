@@ -2,7 +2,8 @@
 #pragma once
 #include <Arduino.h>
 #include "../../config.h"
-#include "../hal/joystick.h"
+#include "../core/tw_input.h"
+#include "../link/twang_link.h"
 
 struct Settings {
   // LEDs
@@ -24,8 +25,12 @@ struct Settings {
   // sound
   uint8_t masterVol = 80, musicVol = 60, sfxVol = 90;
   bool music = true, moveSound = true, attractAudio = false;
-  // joystick
-  JoystickConfig joy;
+  // controls (wired sensor or wireless controller)
+  tw::InputConfig input;
+  bool haptics = true;
+  // 915 MHz wireless controller
+  // (the three frequencies are fixed in src/link/twang_link.h so both ends always agree)
+  uint8_t radioNetId = 42;  // must match NET_ID in controller_config.h
   // wifi
   char apName[33] = DEFAULT_AP_NAME;
   char apPass[65] = DEFAULT_AP_PASS;

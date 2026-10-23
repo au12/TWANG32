@@ -24,6 +24,8 @@ The original feel is preserved exactly: movement speed, the crossing-based colli
 - Web app served from the ESP32 (offline, fonts included): live mirror of the strip on your phone, start runs, pause, skip; full settings; high-score names; per-level stats with a death heatmap.
 - Level editor: reorder by drag, add and drag entities on a track, inspector for every value, fairness warnings, undo/redo, presets, import/export. Changes preview live on the strip in your browser as you edit; "Test on strip" plays it on the real thing.
 - Joystick calibration with a live meter, power limiting, captive portal, home Wi-Fi + `twang.local`, firmware updates from the browser, backups.
+- LSM6DSOX motion sensor support (the MPU6050 still works), with a real degrees-per-second twang threshold.
+- Optional **wireless controller** on 925 MHz: a battery-powered spring with haptics, about 3–4 ms from spring to game. See [docs/CONTROLLER.md](docs/CONTROLLER.md).
 
 ## Play it right now
 
@@ -39,9 +41,9 @@ Then join the Wi-Fi **TWANG** (password `12345678`); the page opens by itself, o
 
 Arduino IDE 2 or `arduino-cli`:
 - Boards Manager: **esp32 by Espressif, 3.x** (tested with 3.3.12)
-- Libraries: **FastLED**, **ESP Async WebServer** and **Async TCP** (both by ESP32Async)
+- Libraries: **FastLED**, **ESP Async WebServer** and **Async TCP** (both by ESP32Async), and **RadioLib** (for the wireless controller; needed to compile even if you don't fit the radio)
 - Board **ESP32 Dev Module**, Partition Scheme **Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)**
-- Open `TWANG32/TWANG32.ino`. Hardware choices (strip type, audio output, pins) are in `TWANG32/config.h`.
+- Open `TWANG32/TWANG32.ino`. Hardware choices (strip type, audio output, pins) are in `TWANG32/config.h`. The wireless controller is a separate sketch in `controller/TWANGController` for the Seeed XIAO ESP32-C3.
 
 ```
 arduino-cli compile -b esp32:esp32:esp32:PartitionScheme=min_spiffs TWANG32
@@ -68,7 +70,7 @@ The virtual device runs the real engine behind the same API as the firmware, so 
 Tests:
 
 ```
-bash tests/run.sh           # engine + every level played by a bot + audio checks, under ASan/UBSan
+bash tests/run.sh           # engine, every level played by a bot, audio, wireless link protocol; under ASan/UBSan
 python3 tests/ui_smoke.py   # simulator UI in headless Chrome
 python3 tests/ui_device.py  # device-mode UI against the virtual device
 ```
@@ -79,7 +81,9 @@ python3 tests/ui_device.py  # device-mode UI against the virtual device
 TWANG32/                 Arduino sketch (open TWANG32.ino)
   config.h               your hardware
   src/core/              the game, synth and music: portable C++, no Arduino
-  src/hal/               joystick, audio output
+  src/hal/               controls (wired sensor + 915 MHz receiver), audio output
+  src/link/              wireless protocol and motion-sensor driver, shared with the controller
+controller/              the wireless controller sketch (XIAO ESP32-C3)
   src/app/               settings, stats, web server, main loop
 campaign/                next.json (stock, 33 levels), classic.json (original 20)
 web/                     the web app and its bundler
@@ -94,6 +98,7 @@ parts/                   PCB, enclosure (from the original project)
 
 - [docs/ROADMAP.md](docs/ROADMAP.md) - what to do, in what order, to get this built
 - [docs/HARDWARE.md](docs/HARDWARE.md) - wiring, recommended upgrades, power
+- [docs/CONTROLLER.md](docs/CONTROLLER.md) - the wireless controller: parts, wiring, setup
 - [docs/LEVELS.md](docs/LEVELS.md) - the level format, for hand-editing or sharing
 
 ## Credits and license

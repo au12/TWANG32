@@ -5,10 +5,9 @@
 #include "../../config.h"
 #include "../core/tw_game.h"
 #include "../core/tw_synth.h"
-#include "../hal/joystick.h"
 #include "settings.h"
 
-#define TWANG_VERSION "next-2026.10"
+#define TWANG_VERSION "next-2026.10b"
 
 namespace twapp {
 
@@ -24,6 +23,7 @@ enum CmdType : uint8_t {
   CMD_CALIBRATE,
   CMD_RESTART,        // a = delay ms
   CMD_FACTORY,
+  CMD_HAPTIC,         // a = ms: buzz the wireless controller
 };
 
 struct Cmd {
@@ -38,7 +38,6 @@ extern tw::Game game;
 extern tw::Campaign* campaign;  // on the heap: too big for the static DRAM segment
 extern Settings settings;
 extern SemaphoreHandle_t settingsLock;
-extern Joystick joystick;
 extern CRGB leds[MAX_LEDS];
 extern volatile int otaProgress;  // -1 when no update is running
 extern tw::LevelDef pendingTest;

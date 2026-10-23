@@ -41,9 +41,21 @@
 // Change it from the web page; this is just the default.
 #define DEFAULT_POWER_LIMIT_MA 2500
 
-// ------------------------------------------------------------------ joystick (MPU6050)
+// ------------------------------------------------------------------ wired motion sensor (optional)
+// An LSM6DSOX (recommended) or MPU6050 at the tip of the spring, on I2C. Detected
+// automatically; leave it unplugged if you use the wireless controller.
 #define I2C_SDA_PIN 21
 #define I2C_SCL_PIN 22
+
+// ------------------------------------------------------------------ wireless controller receiver (optional)
+// Adafruit RFM69HCW 915 MHz breakout. Detected automatically at boot; nothing to
+// enable. See docs/CONTROLLER.md for wiring.
+#define RADIO_SCK_PIN 18
+#define RADIO_MISO_PIN 19
+#define RADIO_MOSI_PIN 23
+#define RADIO_CS_PIN 5
+#define RADIO_RST_PIN 4
+#define RADIO_DIO0_PIN 32   // the breakout's G0
 
 // ------------------------------------------------------------------ audio
 // Pick exactly one.

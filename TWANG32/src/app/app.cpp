@@ -1,6 +1,8 @@
 #include "app.h"
 #include <LittleFS.h>
 #include "../hal/audio_out.h"
+#include "../hal/controls.h"
+#include "../hal/radio_rx.h"
 #include "default_campaign.h"
 #include "stats.h"
 #include "web.h"
@@ -15,7 +17,6 @@ tw::Game game;
 tw::Campaign* campaign = nullptr;
 Settings settings;
 SemaphoreHandle_t settingsLock;
-Joystick joystick;
 CRGB leds[MAX_LEDS];
 volatile int otaProgress = -1;
 tw::LevelDef pendingTest;
@@ -31,6 +32,7 @@ static uint32_t frameCount = 0, fpsValue = 0, fpsAt = 0;
 static uint32_t nextTickUs = 0;
 static uint32_t restartAt = 0;
 static uint32_t settingsSaveAt = 0;
+static uint8_t radioNet = 0;
 
 bool post(const Cmd& c) { return cmdQ && xQueueSend(cmdQ, &c, 0) == pdTRUE; }
 uint32_t fps() { return fpsValue; }
@@ -123,6 +125,10 @@ static void applySettings() {
   synth.volumes(s.masterVol / 100.0f, s.musicVol / 100.0f, s.sfxVol / 100.0f);
   FastLED.setBrightness(s.brightness);
   FastLED.setMaxPowerInVoltsAndMilliamps(5, s.powerLimit ? s.powerLimit : 100000);
+  if (s.radioNetId != radioNet) {
+    radioNet = s.radioNetId;
+    radio_rx::configure(radioNet, twlink::DEFAULT_CHANNELS_KHZ);
+  }
   uint16_t n = constrain(s.ledCount, 1, MAX_LEDS);
   if (ledCtl && n != activeLeds) {
     if (n < activeLeds) {  // blank the LEDs we are about to stop driving
@@ -160,12 +166,17 @@ static void handle(const Cmd& c) {
       applySettings();
       settingsSaveAt = millis() + (c.a ? 10 : 1500);
       break;
-    case CMD_CALIBRATE:
-      xSemaphoreTake(settingsLock, portMAX_DELAY);
-      joystick.calibrate(settings.joy);
-      xSemaphoreGive(settingsLock);
-      settingsSaveAt = millis() + 10;
+    case CMD_CALIBRATE: {
+      tw::InputConfig cfg = settings.input;
+      if (controls::calibrate(cfg)) {
+        xSemaphoreTake(settingsLock, portMAX_DELAY);
+        memcpy(settings.input.offsetMg, cfg.offsetMg, sizeof cfg.offsetMg);
+        xSemaphoreGive(settingsLock);
+        settingsSaveAt = millis() + 10;
+      }
       break;
+    }
+    case CMD_HAPTIC: radio_rx::haptic((uint16_t)c.a); break;
     case CMD_RESTART: restartAt = millis() + (uint32_t)max<int32_t>(c.a, 50); break;
     case CMD_FACTORY:
       LittleFS.remove("/settings.json");
@@ -175,6 +186,24 @@ static void handle(const Cmd& c) {
       break;
     default: break;
   }
+}
+
+// Felt, not heard: the wireless controller buzzes on the big moments.
+static void buzz(const tw::Event& e) {
+  if (!settings.haptics) return;
+  uint16_t ms = 0;
+  switch (e.type) {
+    case tw::EV_DIE: ms = 160; break;
+    case tw::EV_GAME_OVER: ms = e.kind ? 0 : 320; break;
+    case tw::EV_BOSS_HIT: ms = 100; break;
+    case tw::EV_BOSS_KILLED: ms = 260; break;
+    case tw::EV_LEVEL_CLEAR: ms = 60; break;
+    case tw::EV_PICKUP_LIFE: ms = 80; break;
+    case tw::EV_CHECKPOINT: ms = 40; break;
+    case tw::EV_ARMOR_HIT: ms = 30; break;
+    default: break;
+  }
+  if (ms) radio_rx::haptic(ms);
 }
 
 static void renderOta() {
@@ -212,7 +241,9 @@ void setup() {
   loadCampaign();
   stats::begin();
 
-  if (!joystick.begin(I2C_SDA_PIN, I2C_SCL_PIN)) Serial.println("No MPU6050 found: check the joystick wiring");
+  controls::begin();
+  radioNet = settings.radioNetId;
+  radio_rx::begin(radioNet, twlink::DEFAULT_CHANNELS_KHZ);
 
   activeLeds = constrain(settings.ledCount, 1, MAX_LEDS);
 #ifdef USE_APA102
@@ -242,7 +273,7 @@ void loop() {
   uint32_t nowUs = micros();
   int steps = 0;
   while ((int32_t)(nowUs - nextTickUs) >= 0 && steps < 4) {
-    tw::Input in = joystick.read(settings.joy);
+    tw::Input in = controls::read(settings.input);
     game.tick(in);
     tw::Event e;
     while (game.pollEvent(e)) {
@@ -250,6 +281,7 @@ void loop() {
       stats::onEvent(e, game, *campaign);
       web::event(e);
       if (e.type == tw::EV_GAME_OVER) game.highScore = stats::highScore();
+      buzz(e);
     }
     sound.update(game.audio());
     nextTickUs += 16667;

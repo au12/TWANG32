@@ -39,16 +39,23 @@ int settingsApplyJson(Settings& s, const char* json, size_t len) {
     else if (!strcmp(k, "music")) s.music = r.asBool(s.music);
     else if (!strcmp(k, "moveSound")) s.moveSound = r.asBool(s.moveSound);
     else if (!strcmp(k, "attractAudio")) s.attractAudio = r.asBool(s.attractAudio);
-    else if (!strcmp(k, "deadzone")) s.joy.deadzone = num(0, 40, s.joy.deadzone);
-    else if (!strcmp(k, "attackThreshold")) s.joy.attackThreshold = num(2000, 32767, s.joy.attackThreshold);
-    else if (!strcmp(k, "joyAxis")) s.joy.axis = num(0, 2, s.joy.axis);
-    else if (!strcmp(k, "joyInvert")) s.joy.invert = r.asBool(s.joy.invert);
-    else if (!strcmp(k, "joyOffset")) {
+    else if (!strcmp(k, "deadzone")) s.input.deadzone = num(0, 40, s.input.deadzone);
+    else if (!strcmp(k, "twangDps")) s.input.twangDps = num(50, 2000, s.input.twangDps);
+    // settings saved by earlier firmware: MPU6050 counts at +-250 deg/s (131 per deg/s)
+    else if (!strcmp(k, "attackThreshold")) s.input.twangDps = constrain(r.asInt(30000) / 131, 50, 2000);
+    else if (!strcmp(k, "smoothMs")) s.input.smoothMs = num(0, 200, s.input.smoothMs);
+    else if (!strcmp(k, "twangAnyAxis")) s.input.twangAnyAxis = r.asBool(s.input.twangAnyAxis);
+    else if (!strcmp(k, "joyAxis")) s.input.axis = num(0, 2, s.input.axis);
+    else if (!strcmp(k, "joyInvert")) s.input.invert = r.asBool(s.input.invert);
+    else if (!strcmp(k, "joyOffsetMg")) {
       if (r.beginArray()) {
         int i = 0;
-        while (r.nextItem()) { int v = r.asInt(0); if (i < 3) s.joy.offset[i++] = (int16_t)constrain(v, -32768, 32767); }
+        while (r.nextItem()) { int v = r.asInt(0); if (i < 3) s.input.offsetMg[i++] = (int16_t)constrain(v, -2000, 2000); }
       }
     }
+    else if (!strcmp(k, "haptics")) s.haptics = r.asBool(s.haptics);
+    else if (!strcmp(k, "radioNetId")) s.radioNetId = num(1, 250, s.radioNetId);
+
     else if (!strcmp(k, "apName")) { char b[33] = ""; str(b, sizeof b); if (b[0]) strlcpy(s.apName, b, sizeof s.apName); }
     else if (!strcmp(k, "apPass")) { char b[65] = ""; str(b, sizeof b); if (b[0] && strlen(b) >= 8) strlcpy(s.apPass, b, sizeof s.apPass); }
     else if (!strcmp(k, "staSsid")) str(s.staSsid, sizeof s.staSsid);
@@ -59,7 +66,7 @@ int settingsApplyJson(Settings& s, const char* json, size_t len) {
 }
 
 String settingsToJson(const Settings& s, bool secrets) {
-  JsonOut j(900);
+  JsonOut j(1100);
   j.obj();
   j.kv("ledCount", s.ledCount).kv("brightness", s.brightness).kv("powerLimit", s.powerLimit);
   j.kv("conveyorBrightness", s.conveyorBrightness).kv("lavaOffBrightness", s.lavaOffBrightness);
@@ -69,8 +76,10 @@ String settingsToJson(const Settings& s, bool secrets) {
   j.kv("juice", s.juice).kv("telegraph", s.telegraph).kv("smooth", s.smooth).kv("attract", s.attract).kv("palette", s.palette);
   j.kv("masterVol", s.masterVol).kv("musicVol", s.musicVol).kv("sfxVol", s.sfxVol);
   j.kv("music", s.music).kv("moveSound", s.moveSound).kv("attractAudio", s.attractAudio);
-  j.kv("deadzone", s.joy.deadzone).kv("attackThreshold", s.joy.attackThreshold).kv("joyAxis", s.joy.axis).kv("joyInvert", s.joy.invert);
-  j.key("joyOffset").arr().val(s.joy.offset[0]).val(s.joy.offset[1]).val(s.joy.offset[2]).endArr();
+  j.kv("deadzone", s.input.deadzone).kv("twangDps", s.input.twangDps).kv("smoothMs", s.input.smoothMs)
+      .kv("twangAnyAxis", s.input.twangAnyAxis).kv("joyAxis", s.input.axis).kv("joyInvert", s.input.invert);
+  j.key("joyOffsetMg").arr().val(s.input.offsetMg[0]).val(s.input.offsetMg[1]).val(s.input.offsetMg[2]).endArr();
+  j.kv("haptics", s.haptics).kv("radioNetId", s.radioNetId);
   j.kv("apName", s.apName).kv("staSsid", s.staSsid);
   if (secrets) j.kv("apPass", s.apPass).kv("staPass", s.staPass);
   else j.kv("apPassSet", s.apPass[0] != 0).kv("staPassSet", s.staPass[0] != 0);

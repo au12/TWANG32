@@ -40,8 +40,8 @@ const readJson = (n, d) => { try { return JSON.parse(fs.readFileSync(file(n), 'u
 const writeJson = (n, v) => fs.writeFileSync(file(n), typeof v === 'string' ? v : JSON.stringify(v));
 const DEFAULTS = { ledCount: 144, brightness: 150, powerLimit: 2500, conveyorBrightness: 8, lavaOffBrightness: 4, gravity: false, bendPoint: 550,
   difficulty: 1, livesPerLevel: 3, livesPerRun: false, idleTimeout: 30, defaultMode: 0, juice: true, telegraph: true, smooth: true, attract: true,
-  palette: 0, masterVol: 80, musicVol: 60, sfxVol: 90, music: true, moveSound: true, attractAudio: false, deadzone: 8, attackThreshold: 30000,
-  joyAxis: 1, joyInvert: false, joyOffset: [0, 0, 0], apName: 'TWANG', apPass: '12345678', staSsid: '', staPass: '' };
+  palette: 0, masterVol: 80, musicVol: 60, sfxVol: 90, music: true, moveSound: true, attractAudio: false, deadzone: 8, twangDps: 230,
+  smoothMs: 25, twangAnyAxis: false, joyAxis: 1, joyInvert: false, joyOffsetMg: [0, 0, 0], haptics: true, radioNetId: 42, apName: 'TWANG', apPass: '12345678', staSsid: '', staPass: '' };
 const settings = Object.assign({}, DEFAULTS, readJson('settings.json', {}));
 const stockText = fs.readFileSync(path.join(ROOT, 'campaign', 'next.json'), 'utf8');
 let campaignText = fs.existsSync(file('campaign.json')) ? fs.readFileSync(file('campaign.json'), 'utf8') : stockText;
@@ -153,7 +153,10 @@ setInterval(() => {
     for (let k = a; k < b && k < N; k++) { const s = src[k * 3] + src[k * 3 + 1] + src[k * 3 + 2]; if (s > bs) { bs = s; best = k; } }
     frame[3 + i * 3] = src[best * 3]; frame[4 + i * 3] = src[best * 3 + 1]; frame[5 + i * 3] = src[best * 3 + 2];
   }
-  const joy = JSON.stringify({ t: 'j', tilt: Date.now() < input.until ? input.tilt : 0, wobble: Date.now() < input.until && input.attack ? 32000 : 1200 });
+  // the virtual device pretends its scripted input arrives from a wireless controller
+  const live = Date.now() < input.until;
+  const joy = JSON.stringify({ t: 'j', tilt: live ? input.tilt : 0, wobble: live && input.attack ? 600 : 8, src: live ? 'wireless' : 'none',
+    radio: true, conn: live, rssi: -52, loss: 0, pps: live ? 400 : 0, mhz: 925, ch: 0, batt: 3950, lowBatt: false });
   for (const c of wss.clients) {
     if (c.readyState !== 1) continue;
     if (c.sub.mirror && c.bufferedAmount < 20000) c.send(frame);
@@ -186,7 +189,8 @@ async function handle(req, res) {
   try {
     switch (`${m} ${p}`) {
       case 'GET /api/info':
-        return send(res, 200, { device: 'twang', version: 'virtual', name: settings.apName + ' (virtual)', ip: `localhost:${PORT}`, joystick: 'virtual',
+        return send(res, 200, { device: 'twang', version: 'virtual', name: settings.apName + ' (virtual)', ip: `localhost:${PORT}`, joystick: Date.now() < input.until ? 'wireless' : 'none',
+          wiredSensor: 'none (virtual device)', radio: 'virtual RFM69HCW on 925.000 MHz', controller: Date.now() < input.until ? 'connected (virtual)' : 'not heard yet',
           heap: 180000, minHeap: 150000, uptime: Math.floor(process.uptime()), fps, ledCount: settings.ledCount, ledType: 'virtual', maxLeds: 1000,
           audio: 'none (virtual device)', audioUnderruns: 0, levels: w.tw_level_count() });
       case 'GET /api/settings': return send(res, 200, publicSettings());
@@ -227,6 +231,7 @@ async function handle(req, res) {
         if (b && b.music !== undefined) w.tw_music(b.music, b.intensity ?? 0.6); else w.tw_test_sound(b ? b.id : 0);
         return ok(res);
       case 'POST /api/calibrate': return ok(res);
+      case 'POST /api/controller/buzz': return ok(res);
       case 'GET /api/stats': return send(res, 200, stats);
       case 'PUT /api/stats': if (!b) return fail(res, 400, 'not a stats file'); Object.assign(stats, b); writeJson('stats.json', stats); return ok(res);
       case 'POST /api/stats/reset': Object.assign(stats, { games: 0, totalScore: 0, bossKills: 0, wins: 0, scores: [], levels: {} }); writeJson('stats.json', stats); return ok(res);

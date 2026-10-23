@@ -54,6 +54,15 @@ Goal: the music sounds like it does in the browser.
 2. Wire it (four wires), switch `config.h` to `AUDIO_OUT_I2S`, flash.
 3. Balance in **Sound**: master around 80, music 50-60, effects 90. Turn off *Movement thrum* if it gets on your nerves in a quiet room.
 
+## Phase 3b - Cut the cord (a weekend + parts)
+
+Goal: the spring becomes a battery-powered wireless controller.
+
+1. Parts: a Seeed XIAO ESP32-C3, an Adafruit LSM6DSOX, two Adafruit RFM69HCW 915 MHz breakouts, a 1000–2000 mAh LiPo, a switch, and optionally a vibration motor module. The list and wiring are in [CONTROLLER.md](CONTROLLER.md).
+2. Wire the receiver onto the main unit first and check its serial log says the radio is ready.
+3. Build the controller, flash it, and confirm both ends see each other: the controller's serial monitor says `linked`, and Setup → Wireless controller says "Connected".
+4. Calibrate, pick the tilt axis, set twang sensitivity, then play a few levels and compare the feel with the wire.
+
 ## Phase 4 - Make it a fixture (a weekend)
 
 Goal: something people walk up to and play.

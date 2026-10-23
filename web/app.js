@@ -385,11 +385,17 @@ const SETTINGS = [
     { k: 'conveyorBrightness', label: 'Conveyor brightness', type: 'number', min: 1, max: 80, def: 8, device: true, hint: 'APA102: about 8. NeoPixel: about 40.' },
     { k: 'lavaOffBrightness', label: 'Cool lava brightness', type: 'number', min: 1, max: 60, def: 4, device: true, hint: 'APA102: about 4. NeoPixel: about 15.' },
   ] },
-  { group: 'Joystick', device: true, items: [
+  { group: 'Spring', device: true, items: [
     { k: 'deadzone', label: 'Dead zone', type: 'number', min: 0, max: 30, def: 8, hint: 'Raise it if the player creeps without input.' },
-    { k: 'attackThreshold', label: 'Twang sensitivity', type: 'range', min: 10000, max: 32767, def: 30000, invert: true, hint: 'Further right means a lighter flick twangs. The original is near the left end.' },
+    { k: 'twangDps', label: 'Twang sensitivity', type: 'range', min: 80, max: 900, def: 230, invert: true, hint: 'Further right means a lighter flick twangs. The original is at 230°/s.' },
+    { k: 'smoothMs', label: 'Tilt smoothing (ms)', type: 'number', min: 0, max: 200, def: 25, hint: 'Lower feels snappier, higher hides spring wobble. The original was about 35.' },
     { k: 'joyAxis', label: 'Tilt axis', type: 'select', opts: [[0, 'X'], [1, 'Y'], [2, 'Z']], def: 1 },
     { k: 'joyInvert', label: 'Reverse direction', type: 'switch', def: false },
+    { k: 'twangAnyAxis', label: 'Twang on a flick in any direction', type: 'switch', def: false, hint: 'Off is the original: only a flick across the tilt axis twangs.' },
+  ] },
+  { group: 'Wireless controller', device: true, items: [
+    { k: 'haptics', label: 'Buzz the controller on deaths, boss hits and level clears', type: 'switch', def: true },
+    { k: 'radioNetId', label: 'Radio network', type: 'number', min: 1, max: 250, def: 42, hint: 'Must match NET_ID in the controller’s controller_config.h.' },
   ] },
 ];
 const SOUND_SETTINGS = [
@@ -443,7 +449,10 @@ const app = {
       try { this.stats = await this.dev.api('/api/stats'); } catch (e) { this.stats = emptyStats(); }
       this.dev.on('s', (s) => { this.remote = s; });
       this.dev.on('e', (e) => this.onEvent(e, true));
-      this.dev.on('open', () => this.setConn('live'));
+      this.dev.on('open', () => {
+        this.setConn('live');
+        if (this.view === 'setup') this.dev.send({ t: 'joy', on: true });  // re-subscribe after (re)connecting
+      });
       this.dev.on('close', () => this.setConn('lost'));
       this.dev.on('saved', () => this.refreshStats());
       this.dev.connect();
@@ -857,11 +866,18 @@ const app = {
       v.append(h('h2', null, g.group));
       if (g.group === 'LED strip' && this.mode === 'sim') v.append(h('p', { class: 'small muted' }, 'In the simulator this sets how many LEDs the strip above draws, so you can see your level at your real strip length.'));
       v.append(h('div', { class: 'grid' }, items.map((it) => this.settingField(it))));
-      if (g.group === 'Joystick') {
+      if (g.group === 'Wireless controller') {
         v.append(h('div', { class: 'panel', style: { marginTop: '14px', maxWidth: '520px' } },
-          h('div', { class: 'small muted' }, 'Live from the spring'),
+          h('table', null, h('tbody', { id: 'ctlStatus' }, h('tr', null, h('td', { class: 'muted' }, 'Status'), h('td', null, 'Waiting for the device…')))),
+          h('div', { class: 'row', style: { marginTop: '10px' } },
+            h('button', { class: 'btn', onclick: async () => { try { await this.dev.api('/api/controller/buzz', { body: {} }); toast('Sent a buzz to the controller'); } catch (e) { toast(e.message); } } }, 'Buzz the controller'))));
+        this.dev.on('j', (j) => this.renderControllerStatus(j));
+      }
+      if (g.group === 'Spring') {
+        v.append(h('div', { class: 'panel', style: { marginTop: '14px', maxWidth: '520px' } },
+          h('div', { class: 'small muted', id: 'joySrc' }, 'Live from the spring'),
           h('div', { class: 'row', style: { marginTop: '6px' } }, h('span', { style: { width: '5em' } }, 'Tilt'), h('div', { class: 'meter', style: { flex: 1 } }, h('i', { id: 'joyTilt' })), h('span', { id: 'joyTiltN', style: { width: '3em', textAlign: 'right' } }, '0')),
-          h('div', { class: 'row', style: { marginTop: '6px' } }, h('span', { style: { width: '5em' } }, 'Wobble'), h('div', { class: 'meter', style: { flex: 1 } }, h('i', { id: 'joyWob' })), h('span', { id: 'joyWobN', style: { width: '3em', textAlign: 'right' } }, '0')),
+          h('div', { class: 'row', style: { marginTop: '6px' } }, h('span', { style: { width: '5em' } }, 'Wobble'), h('div', { class: 'meter', style: { flex: 1 } }, h('i', { id: 'joyWob' })), h('span', { id: 'joyWobN', style: { width: '4.5em', textAlign: 'right' } }, '0')),
           h('div', { class: 'row', style: { marginTop: '12px' } },
             h('button', { class: 'btn', onclick: async () => { try { await this.dev.api('/api/calibrate', { body: {} }); toast('Calibrated. That position is now level.'); } catch (e) { toast(e.message); } } }, 'Calibrate level'),
             h('span', { class: 'hint' }, 'Let the spring hang still, then calibrate. This removes drift better than a big dead zone.'))));
@@ -870,9 +886,10 @@ const app = {
           if (!t) return;
           t.style.width = clamp(50 + j.tilt / 1.8, 0, 100) + '%';
           $('#joyTiltN').textContent = Math.round(j.tilt);
-          $('#joyWob').style.width = clamp(j.wobble / 340, 0, 100) + '%';
-          $('#joyWob').style.background = j.wobble >= this.settings.attackThreshold ? 'var(--led-exit)' : 'var(--led-chaser)';
-          $('#joyWobN').textContent = Math.round(j.wobble / 1000) + 'k';
+          $('#joyWob').style.width = clamp(j.wobble / 10, 0, 100) + '%';
+          $('#joyWob').style.background = j.wobble >= this.settings.twangDps ? 'var(--led-exit)' : 'var(--led-chaser)';
+          $('#joyWobN').textContent = Math.round(j.wobble) + '°/s';
+          $('#joySrc').textContent = j.src === 'wireless' ? 'Live from the wireless controller' : j.src === 'wired' ? 'Live from the wired sensor' : 'No spring connected';
         });
       }
     }
@@ -884,6 +901,27 @@ const app = {
     else v.append(h('h2', null, 'Build the real one'),
       h('p', { class: 'small muted' }, 'Everything here, including the levels you design, runs on the ESP32 firmware in the TWANG32 repo. Flash it, join the TWANG Wi-Fi, and this same page opens on your phone with a live view of the strip.'),
       h('div', { class: 'row' }, h('button', { class: 'btn danger', onclick: async () => { if (await ask('Reset simulator settings, levels and stats?', 'Reset', true)) { ['settings', 'campaign', 'stats', 'draft'].forEach((k) => store.set(k, null)); location.reload(); } } }, 'Reset the simulator')));
+  },
+
+  renderControllerStatus(j) {
+    const tb = $('#ctlStatus');
+    if (!tb) return;
+    const rows = [];
+    if (!j.radio) {
+      rows.push(['Status', 'No 915 MHz radio found on this TWANG']);
+    } else if (!j.conn) {
+      rows.push(['Status', 'Not connected. Switch the controller on, or move the spring to wake it.']);
+      rows.push(['Listening on', `${Number(j.mhz).toFixed(3)} MHz`]);
+    } else {
+      const battV = j.batt ? j.batt / 1000 : 0;
+      const pct = battV ? clamp(Math.round((battV - 3.3) / 0.9 * 100), 0, 100) : null;
+      rows.push(['Status', j.src === 'wireless' ? 'Connected, in control' : 'Connected']);
+      rows.push(['Signal', `${j.rssi} dBm, ${j.loss}% lost, ${j.pps} packets/s`]);
+      rows.push(['Frequency', `${Number(j.mhz).toFixed(3)} MHz (channel ${j.ch + 1} of 3)`]);
+      rows.push(['Battery', battV ? `${battV.toFixed(2)} V, about ${pct}%${j.lowBatt ? ', charge soon' : ''}` : 'not measured']);
+    }
+    tb.innerHTML = '';
+    rows.forEach(([k, v]) => tb.append(h('tr', null, h('td', { class: 'muted', style: { width: '8em' } }, k), h('td', null, v))));
   },
 
   buildDeviceSetup(v) {
@@ -923,7 +961,8 @@ const app = {
       if (!el) return;
       const up = i.uptime || 0;
       el.innerHTML = '';
-      const rows = [['Firmware', i.version], ['Address', `${i.ip}${i.staIp ? ', ' + i.staIp + ' on ' + i.staSsid : ''}`], ['Joystick', i.joystick],
+      const rows = [['Firmware', i.version], ['Address', `${i.ip}${i.staIp ? ', ' + i.staIp + ' on ' + i.staSsid : ''}`], ['Spring', i.joystick === 'wireless' ? 'Wireless controller' : i.joystick === 'wired' ? 'Wired sensor' : 'None connected'],
+        ['Wired sensor', i.wiredSensor], ['915 MHz radio', i.radio], ['Controller', i.controller],
         ['Audio output', i.audio], ['LEDs', `${i.ledCount} (${i.ledType})`], ['Free memory', `${fmt(i.heap / 1024)} KB`],
         ['Frame rate', `${i.fps} fps`], ['Up for', `${Math.floor(up / 3600)} h ${Math.floor(up / 60) % 60} min`]];
       el.append(h('table', null, h('tbody', null, rows.map(([k, val]) => h('tr', null, h('td', { class: 'muted' }, k), h('td', null, val ?? ''))))));
